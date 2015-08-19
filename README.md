@@ -1,4 +1,3 @@
-Time
+time-elixir
 ====
 
-** TODO: Add description **
