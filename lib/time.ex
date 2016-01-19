@@ -1,5 +1,5 @@
 defmodule Time do
-  @type date :: {pos_integer, 1..12, 1..31}
+  @type date :: {non_neg_integer, 1..12, 1..31}
   @type time :: {0..23, 0..59, 0..59}
   @type datetime :: {date, time}
   @type timestamp :: {pos_integer, 0..999999, 0..999999}
@@ -34,18 +34,18 @@ defmodule Time do
   end
 
   @spec datetime_to_string(datetime) :: datetime
-  def datetime_to_string(datetime) do
-    {{yr, mon, day}, {hr, min, sec}} = datetime
-
-    day_of_week = {yr, mon, day}
-    |> :calendar.day_of_the_week
-    |> integer_to_abbreviated_day_of_the_week
+  def datetime_to_string({date = {yr, mon, day}, {hr, min, sec}}) do
+    day_of_week =
+      date
+        |> :calendar.day_of_the_week
+        |> integer_to_abbreviated_day_of_the_week
 
     month = integer_to_abbreviated_month mon
 
-    [day, hr, min, sec] = [day, hr, min, sec]
-    |> Enum.map(&:io_lib.format("~2.10.0B", [&1]))
-    |> Enum.map(&:binary.list_to_bin(&1))
+    [day, hr, min, sec] =
+      [day, hr, min, sec]
+        |> Enum.map(&:io_lib.format("~2.10.0B", [&1]))
+        |> Enum.map(&:binary.list_to_bin(&1))
 
     "#{day_of_week} #{month} #{day} #{hr}:#{min}:#{sec} #{yr}"
   end 
@@ -87,73 +87,85 @@ defmodule Time do
       "oct" => 10, "october"   => 10,
       "nov" => 11, "november"  => 11,
       "dec" => 12, "december"  => 12
-    }[String.downcase(month)]
+    }[String.downcase month]
   end
 
-  def flatten_nested_tuples(remnant) when not is_tuple(remnant), do: remnant
-  def flatten_nested_tuples(tuple) when is_tuple(tuple) do
+  @spec flatten_nested_tuples(tuple) :: list
+  def flatten_nested_tuples(remnant) when not is_tuple remnant do
+    remnant
+  end
+  def flatten_nested_tuples(tuple) when is_tuple tuple do
     tuple
-    |> Tuple.to_list
-    |> Enum.map(&(flatten_nested_tuples &1))
-    |> List.flatten
+      |> Tuple.to_list
+      |> Enum.map(&flatten_nested_tuples(&1))
+      |> List.flatten
   end
 
-  @spec is_valid_date?(pos_integer, 1..12, 1..31) :: boolean
-  @spec is_valid_date?(date) :: boolean
-  def is_valid_date?(y, m, d), do: is_valid_date?({y, m, d})
-  def is_valid_date?(date), do: :calendar.valid_date(date)
+  @spec is_date(any) :: boolean
+  def is_date(y, m, d) do
+    is_date {y, m, d}
+  end
+  def is_date(date) do
+    :calendar.valid_date date
+  end
 
-  @spec is_valid_time?(0..23, 0..59, 0..59) :: boolean
-  @spec is_valid_time?(time) :: boolean
-  def is_valid_time?(h, m, s), do: is_valid_time?({h, m, s})
-  def is_valid_time?({h, m, s}) when h in 0..23
-                                 and m in 0..59
-                                 and s in 0..59, do: true
-  def is_valid_time?(_), do: false
+  @spec is_time(any) :: boolean
+  def is_time(h, m, s) do
+    is_time {h, m, s}
+  end
+  def is_time({h, m, s}) when h in 0..23
+                          and m in 0..59
+                          and s in 0..59, do: true
+  def is_time(_) do
+    false
+  end
 
-  @spec is_valid_datetime?(datetime) :: boolean
-  def is_valid_datetime?({date, time}) do
-    is_valid_date?(date) && is_valid_time?(time)
+  @spec is_datetime(any) :: boolean
+  def is_datetime({date, time}) do
+    is_date(date) && is_time(time)
+  end
+  def is_datetime(_) do
+    false
   end
 
   @spec iso8601_to_datetime(String.t) :: datetime | {:error, atom}
   def iso8601_to_datetime(iso_string) do
-    [year, month, day, hr, min, sec | _tail] = iso_string
-    |> :binary.split(["-", "T", ":", "+", "Z"], [:global])
-    |> Enum.map(fn "" -> ""; x -> String.to_integer x end)
+    [year, month, day, hr, min, sec | _tail] =
+      iso_string
+        |> :binary.split(["-", "T", ":", "+", "Z"], [:global])
+        |> Enum.map(fn "" -> ""; x -> String.to_integer x end)
 
     {{year, month, day}, {hr, min, sec}}
   end
 
-  defp offset_to_iso8601(offset) do
-    cond do
-       offset < 0 ->
-        :io_lib.format("-~4.10.0B", offset * 100)
-
-       offset > 0 ->
-        :io_lib.format("+~4.10.0B", offset * 100)
-
-       offset == 0 ->
-        "Z"
-    end
+  defp offset_to_iso8601(offset) when -13 < offset and offset < 0 do
+    :io_lib.format "-~4.10.0B", [abs offset * 100]
+  end
+  defp offset_to_iso8601(offset) when offset == 0 do
+    "Z"
+  end
+  defp offset_to_iso8601(offset) when 0 < offset and offset < 15 do
+    :io_lib.format "+~4.10.0B", [offset * 100]
   end
 
   @spec datetime_to_iso8601(datetime) :: String.t
   def datetime_to_iso8601(datetime, offset \\ 0) do
     fmt_args = datetime |> flatten_nested_tuples
-    iso_offset = offset_to_iso8601(offset)
+    iso_offset = offset_to_iso8601 offset
 
     "~4.10B-~2.10.0B-~2.10.0BT~2.10.0B:~2.10.0B:~2.10.0B~s"
-    |> :io_lib.format(fmt_args ++ [iso_offset])
-    |> List.flatten
-    |> List.to_string
+      |> :io_lib.format(fmt_args ++ [iso_offset])
+      |> List.flatten
+      |> List.to_string
   end
 
-  @spec is_iso8601?(String.t) :: boolean
-  def is_iso8601?(x) when is_binary x do
-    Regex.match?(~r/^\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}([+-]\d{2,4}|Z)$/, x)
+  @spec is_iso8601(any) :: boolean
+  def is_iso8601(x) when is_binary x do
+    Regex.match? ~r/^\d{4}-\d{1,2}-\d{1,2}T\d{2}:\d{2}:\d{2}([+-]\d{2,4}|Z)$/, x
   end
-  def is_iso8601?(_), do: false
+  def is_iso8601(_) do
+    false
+  end
 
   @spec datetime_to_timestamp(datetime) :: timestamp
   def datetime_to_timestamp(datetime) do
@@ -164,20 +176,32 @@ defmodule Time do
 
   @spec timestamp_to_usecs(timestamp) :: pos_integer
   def timestamp_to_usecs({mega_secs, secs, usecs}) do
-    secs_plus_usecs_in_usecs = [secs, usecs]
-    |> Enum.map(fn x -> :io_lib.format "~6..0B", [x] end)
+    secs_plus_usecs_in_usecs =
+      [secs, usecs]
+        |> Enum.map(fn x -> :io_lib.format "~6..0B", [x] end)
 
     [mega_secs, secs_plus_usecs_in_usecs]
-    |> Enum.join
-    |> String.to_integer
+      |> Enum.join
+      |> String.to_integer
+  end
+
+  @spec usecs_to_timestamp(pos_integer) :: timestamp
+  def usecs_to_timestamp(usecs) do
+    mega = trunc :math.pow(10, 6)
+    secs = div usecs, mega
+    megasec_part = div secs, mega
+    sec_part = secs - (megasec_part * mega)
+    usec_part = usecs - (secs * mega)
+
+    {megasec_part, sec_part, usec_part}
   end
 
   @spec iso8601_to_bson(String.t) :: Struct.t
   def iso8601_to_bson(iso8601) do
     iso8601
-    |> iso8601_to_datetime
-    |> datetime_to_timestamp
-    |> Bson.UTC.from_now
+      |> iso8601_to_datetime
+      |> datetime_to_timestamp
+      |> Bson.UTC.from_now
   end
 
   @spec diff_datetime(datetime, datetime) :: pos_integer
