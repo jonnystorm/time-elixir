@@ -59,14 +59,14 @@ defmodule Time do
   end
 
   @spec datetime_to_epoch_time(datetime) :: pos_integer
-  def datetime_to_epoch_time(datetime) do
+  def datetime_to_epoch_time(datetime = {{_, _, _}, {_, _, _}}) do
     gregorian_seconds = :calendar.datetime_to_gregorian_seconds datetime
     
     gregorian_seconds - unix_epoch_in_gregorian_seconds
   end 
 
   @spec epoch_time_to_datetime(pos_integer) :: datetime
-  def epoch_time_to_datetime(epoch) do
+  def epoch_time_to_datetime(epoch) when is_integer epoch do
     gregorian_seconds = epoch + unix_epoch_in_gregorian_seconds
 
     :calendar.gregorian_seconds_to_datetime gregorian_seconds
@@ -105,7 +105,7 @@ defmodule Time do
   def is_date(y, m, d) do
     is_date {y, m, d}
   end
-  def is_date(date) do
+  def is_date(date = {_, _, _}) do
     :calendar.valid_date date
   end
 
@@ -121,7 +121,7 @@ defmodule Time do
   end
 
   @spec is_datetime(any) :: boolean
-  def is_datetime({date, time}) do
+  def is_datetime({date = {_, _, _}, time = {_, _, _}}) do
     is_date(date) && is_time(time)
   end
   def is_datetime(_) do
@@ -129,27 +129,27 @@ defmodule Time do
   end
 
   @spec iso8601_to_datetime(String.t) :: datetime | {:error, atom}
-  def iso8601_to_datetime(iso_string) do
+  def iso8601_to_datetime(iso8601) when is_binary iso8601 do
     [year, month, day, hr, min, sec | _tail] =
-      iso_string
+      iso8601
         |> :binary.split(["-", "T", ":", "+", "Z"], [:global])
         |> Enum.map(fn "" -> ""; x -> String.to_integer x end)
 
     {{year, month, day}, {hr, min, sec}}
   end
 
-  defp offset_to_iso8601(offset) when -13 < offset and offset < 0 do
+  defp offset_to_iso8601(offset) when -12 <= offset and offset <= -1 do
     :io_lib.format "-~4.10.0B", [abs offset * 100]
   end
   defp offset_to_iso8601(offset) when offset == 0 do
     "Z"
   end
-  defp offset_to_iso8601(offset) when 0 < offset and offset < 15 do
+  defp offset_to_iso8601(offset) when 1 <= offset and offset <= 14 do
     :io_lib.format "+~4.10.0B", [offset * 100]
   end
 
   @spec datetime_to_iso8601(datetime) :: String.t
-  def datetime_to_iso8601(datetime, offset \\ 0) do
+  def datetime_to_iso8601(datetime = {{_, _, _}, {_, _, _}}, offset \\ 0) do
     fmt_args = datetime |> flatten_nested_tuples
     iso_offset = offset_to_iso8601 offset
 
@@ -168,7 +168,7 @@ defmodule Time do
   end
 
   @spec datetime_to_timestamp(datetime) :: timestamp
-  def datetime_to_timestamp(datetime) do
+  def datetime_to_timestamp(datetime = {{_, _, _}, {_, _, _}}) do
     epoch_time = datetime_to_epoch_time datetime
 
     {div(epoch_time, 1000000), rem(epoch_time, 1000000), 0}
@@ -186,7 +186,7 @@ defmodule Time do
   end
 
   @spec usecs_to_timestamp(pos_integer) :: timestamp
-  def usecs_to_timestamp(usecs) do
+  def usecs_to_timestamp(usecs) when is_integer usecs do
     mega = trunc :math.pow(10, 6)
     secs = div usecs, mega
     megasec_part = div secs, mega
@@ -197,7 +197,7 @@ defmodule Time do
   end
 
   @spec iso8601_to_bson(String.t) :: Struct.t
-  def iso8601_to_bson(iso8601) do
+  def iso8601_to_bson(iso8601) when is_binary iso8601 do
     iso8601
       |> iso8601_to_datetime
       |> datetime_to_timestamp
@@ -205,7 +205,11 @@ defmodule Time do
   end
 
   @spec diff_datetime(datetime, datetime) :: pos_integer
-  def diff_datetime(datetime1, datetime2) do
+  def diff_datetime(
+    datetime1 = {{_, _, _}, {_, _, _}},
+    datetime2 = {{_, _, _}, {_, _, _}}
+  ) do
+
     greg_secs1 = :calendar.datetime_to_gregorian_seconds datetime1
     greg_secs2 = :calendar.datetime_to_gregorian_seconds datetime2
 
