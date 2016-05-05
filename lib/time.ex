@@ -196,14 +196,6 @@ defmodule Time do
     {megasec_part, sec_part, usec_part}
   end
 
-  @spec iso8601_to_bson(String.t) :: Struct.t
-  def iso8601_to_bson(iso8601) when is_binary iso8601 do
-    iso8601
-      |> iso8601_to_datetime
-      |> datetime_to_timestamp
-      |> Bson.UTC.from_now
-  end
-
   @spec diff_datetime(datetime, datetime) :: pos_integer
   def diff_datetime(
     datetime1 = {{_, _, _}, {_, _, _}},

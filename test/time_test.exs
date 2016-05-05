@@ -33,7 +33,17 @@ defmodule TimeTest do
       == Time.unix_epoch_as_datetime
   end
 
-  test "converts datetime to ISO 8601 with (Zulu) timezone" do
+  test "converts now() timestamp to usecs" do
+    assert Time.timestamp_to_usecs({1000, 100000, 100000})
+      == 1000100000100000
+  end
+
+  test "correctly justifies numbers when converting now() to usecs" do
+    assert Time.timestamp_to_usecs({1000, 1000, 1})
+      == 1000001000000001
+  end
+
+  test "converts datetime to ISO 8601 with Zulu timezone" do
     assert Time.datetime_to_iso8601(Time.unix_epoch_as_datetime)
       == "1970-01-01T00:00:00Z"
   end
